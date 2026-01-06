@@ -1,0 +1,13 @@
+name: Validate Terraform
+on:
+  pull_request:
+    branches:
+    - main
+jobs:
+  terraform-validate:
+    runs-on: ["gha-runner-scale-set"]
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+    - name: Validate Terraform configuration
+      uses: devops-infra/action-terraform-validate@v0.3.1

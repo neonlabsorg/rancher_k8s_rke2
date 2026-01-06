@@ -1,0 +1,13 @@
+#cloud-config
+package_update: true
+
+packages:
+  - nfs-common
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/ssh-hardening.conf
+    content: |
+      PasswordAuthentication no
+
+runcmd:
+  - systemctl reload ssh
