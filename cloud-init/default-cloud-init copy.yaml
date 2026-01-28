@@ -1,0 +1,55 @@
+#cloud-config
+package_update: true
+
+packages:
+  - nfs-common
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/ssh-hardening.conf
+    content: |
+      PasswordAuthentication no
+
+runcmd:
+  - systemctl reload ssh
+  - echo "This is default cloud-init file" > /root/cloud-init-file.txt
+  - |
+    # 1. Get network address from Terraform variable
+    TARGET_NET="${rke2_private_network_range}"
+    TARGET_ADDR=$(echo $TARGET_NET | cut -d'/' -f1)
+
+    # 2. Find private IP (via route to private network)
+    PRIVATE_IP=$(ip route get $TARGET_ADDR | grep -oP 'src \K\S+')
+    
+    # 3. Find public IP (via default route to internet)
+    PUBLIC_IP=$(ip route get 1.1.1.1 | grep -oP 'src \K\S+')
+
+    # 4. If both IPs are found, write to config. This separates etcd and kubelet logs traffic.
+    if [ -n "$PRIVATE_IP" ] && [ -n "$PUBLIC_IP" ]; then
+      mkdir -p /etc/rancher/rke2/config.yaml.d/
+      cat <<EOF > /etc/rancher/rke2/config.yaml.d/99-node-ip.yaml
+    node-ip: "$PRIVATE_IP"
+    node-external-ip: "$PUBLIC_IP"
+    tls-san:
+      - "$PRIVATE_IP"
+      - "$PUBLIC_IP"
+    EOF
+      echo "RKE2: set internal=$PRIVATE_IP, external=$PUBLIC_IP"
+    fi
+
+
+
+# #cloud-config
+# package_update: true
+
+# packages:
+#   - nfs-common
+#   - wireguard
+#   - wireguard-tools
+
+# write_files:
+#   - path: /etc/ssh/sshd_config.d/ssh-hardening.conf
+#     content: |
+#       PasswordAuthentication no
+
+# runcmd:
+#   - systemctl reload ssh

@@ -6,7 +6,7 @@ terraform {
     }
     rancher2 = {
       source  = "rancher/rancher2"
-      version = "~> 8.3"
+      version = "~> 13.1"
     }
     hcloud = {
       source  = "hetznercloud/hcloud"
@@ -41,7 +41,7 @@ provider "kubernetes" {
   insecure = true
 }
 
-# Get kubeconfig data from Rancher Management Cluster and new RKE2 cluster
+# Get kubeconfig data from Rancher Management Cluster and newly created RKE2 cluster
 locals {
   kubeconfig_data_mgmt_cluster = yamldecode(data.rancher2_cluster_v2.mgmt_cluster_v2_config.kube_config)
   kube_host_mgmt_cluster       = local.kubeconfig_data_mgmt_cluster.clusters[0].cluster.server
@@ -49,7 +49,7 @@ locals {
   # kube_ca = local.kubeconfig_data_mgmt_cluster.clusters[0].cluster["certificate-authority-data"]  
   kube_token_mgmt_cluster = local.kubeconfig_data_mgmt_cluster.users[0].user.token
 
-  # Get kubeconfig data from new RKE2 cluster
+  # Get kubeconfig data from newly created RKE2 cluster
   kubeconfig_data_current_cluster = yamldecode(rancher2_cluster_v2.hetzner_k8s_rke2.kube_config)
   kube_host_current_cluster       = local.kubeconfig_data_current_cluster.clusters[0].cluster.server
   kube_token_current_cluster      = local.kubeconfig_data_current_cluster.users[0].user.token

@@ -84,6 +84,17 @@ variable "cluster_configurations" {
     EOT
   }
   validation {
+    # Ensures at least one cloud-init source is provided (either default or custom).
+    condition = alltrue([
+      for p in var.cluster_configurations.node_pools_machine_config :
+      !(!p.use_default_cloud_init && p.custom_cloud_init == "")
+    ])
+    error_message = <<-EOT
+    Missing cloud-init configuration for node pools: ${jsonencode([for p in var.cluster_configurations.node_pools_machine_config : p.name if !p.use_default_cloud_init && p.custom_cloud_init == ""])}.
+    If 'use_default_cloud_init' is set to false, you MUST provide a 'custom_cloud_init' which at least contains RKE2 network configuration scripts.
+    EOT
+  }
+  validation {
     # Ensures use_default_cloud_init and custom_cloud_init are mutually exclusive.
     condition = alltrue([
       for p in var.cluster_configurations.node_pools_machine_config :
@@ -118,10 +129,11 @@ variable "cluster_configurations" {
   }
 }
 
-# Required
+# Optional
 variable "management_network_id" {
   type        = string
-  description = "Rancher Management Network ID"
+  description = "Rancher Management Network ID (Optional, will use hcloud_network.rke2_network if not provided)"
+  default     = ""
 }
 
 # Required
@@ -133,7 +145,7 @@ variable "management_network_id" {
 
 variable "hcloud_ccm_chart_version" {
   type        = string
-  default     = "1.28.0" # last available version when this module was created
+  default     = "1.29.2" # last available version when this module was created
   description = <<-EOT
     Hetzner Cloud Controller Manager Chart Version
     Docs link: https://artifacthub.io/packages/helm/hcloud/hcloud-cloud-controller-manager
@@ -173,7 +185,7 @@ variable "use_self_managed_cluster_autoscaler" {
 
 variable "kubernetes_autoscaler_chart_version" {
   type        = string
-  default     = "9.53.0" # last available version when this module was created
+  default     = "9.54.0" # last available version when this module was created
   description = "Kubernetes Autoscaler Chart Version"
 }
 

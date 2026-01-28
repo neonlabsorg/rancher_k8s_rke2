@@ -49,11 +49,12 @@ disablePublicIpv4: false
 disablePublicIpv6: false
 additionalKey: []
 additionalUserData: |-
-  ${each.value.use_default_cloud_init ? indent(4, file("${path.module}/cloud-init/default-cloud-init.yaml")) : indent(4, each.value.custom_cloud_init)}
+  ${each.value.use_default_cloud_init ? indent(4, templatefile("${path.module}/cloud-init/default-cloud-init.yaml", {})) : indent(4, each.value.custom_cloud_init)}
 existingKeyId: "0"
 existingKeyPath: ""
 keyLabel: []
 networks: []
+  # - "${hcloud_network.rke2_network.id}"
 placementGroup: ""
 primaryIpv4: ""
 primaryIpv6: ""
@@ -130,19 +131,66 @@ resource "rancher2_cluster_v2" "hetzner_k8s_rke2" {
     }
 
     machine_global_config = yamlencode({
-      cni                        = "calico"
+      cni                        = "cilium"
       disable-kube-proxy         = false
       disable-cloud-controller   = true # Required for external CCM (Hetzner CCM)
       disable-kube-cloud-cleanup = true
       disable = [
         "rke2-ingress-nginx"
       ]
-      etcd-expose-metrics = false
+      etcd-expose-metrics = true
+      # ExternalIP is used for the API server to access the nodes 
+      # It is nedded to be able to use Racher server from any external network
+      # kube-apiserver-arg = [
+      #   "kubelet-preferred-address-types=ExternalIP,InternalIP"
+      # ]
+      # tls-san-security = false
       kubelet-arg = [
         "cloud-provider=external",
         "container-log-max-size=${var.max_container_log_size}",
         "container-log-max-files=${var.max_container_log_files}"
       ]
+    })
+
+    chart_values = yamlencode({
+      rke2-calico = {
+        installation = {
+          calicoNetwork = {
+            # mtu = 1400
+            # nodeAddressAutodetectionV4 = {
+            #   # Try private network first, fallback to any available (public) for remote nodes
+            #   cidrs = [hcloud_network.rke2_network.ip_range, "0.0.0.0/0"]
+            # }
+          }
+        }
+        # Enable WireGuard encryption for inter-node traffic
+        felixConfiguration = {
+          wireguardEnabled = true
+        }
+      }
+      # rke2-cilium = {
+      #   operator = {
+      #     tolerations = [
+      #       {
+      #         operator = "Exists"
+      #       }
+      #     ]
+      #   }
+      #   encryption = {
+      #     enabled        = true
+      #     type           = "wireguard"
+      #     nodeEncryption = true
+      #   }
+      #   hubble = {
+      #     enabled = true
+      #     relay = {
+      #       enabled = true
+      #     }
+      #     ui = {
+      #       enabled = true
+      #     }
+      #   }
+      # }
     })
 
     additional_manifest = <<-EOF
@@ -155,7 +203,7 @@ metadata:
   namespace: kube-system
 stringData:
   token: "${var.hetzner_api_token}"
-  network: "${var.management_network_id}"
+  network: ""
   robot-user: "${var.robot_user}"
   robot-password: "${var.robot_password}"
 ---
@@ -174,9 +222,36 @@ spec:
   valuesContent: |-
     networking:
       enabled: true
-      clusterCIDR: 10.42.0.0/16  # Default cluster CIDR for rke2-calico
+      # Default cluster CIDR for rke2, actually don't use here, because cni is responsible for routing
+      clusterCIDR: 10.42.0.0/16  
+      network:
+        valueFrom:
+          secretKeyRef:
+            name: hcloud
+            key: network
     robot:
       enabled: ${var.enable_robot_support}
+    env:
+      # Disable network routes cause CNI do it and Robot API does not support routing
+      HCLOUD_NETWORK_ROUTES_ENABLED:
+        value: "false"
+      HCLOUD_TOKEN:
+        valueFrom:
+          secretKeyRef:
+            name: hcloud
+            key: token
+      ROBOT_USER:
+        valueFrom:
+          secretKeyRef:
+            name: hcloud
+            key: robot-user
+            optional: true
+      ROBOT_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: hcloud
+            key: robot-password
+            optional: true
     additionalTolerations:
       - key: "node-role.kubernetes.io/etcd"
         operator: "Exists"
@@ -187,3 +262,6 @@ EOF
 
   depends_on = [kubectl_manifest.hetzner_machine_config]
 }
+
+# Проверить по какому каком интерфейсу идет связь с для calico xvlan
+# есть подозрени что там что-то не то
