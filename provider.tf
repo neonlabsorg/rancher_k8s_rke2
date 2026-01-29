@@ -6,7 +6,7 @@ terraform {
     }
     rancher2 = {
       source  = "rancher/rancher2"
-      version = "~> 8.3"
+      version = "~> 13.1"
     }
     hcloud = {
       source  = "hetznercloud/hcloud"

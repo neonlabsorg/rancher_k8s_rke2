@@ -20,56 +20,63 @@ resource "hcloud_firewall" "rke2_calico_fw" {
 
   # --- RKE2 Core Ports ---
 
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "9345"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "RKE2 supervisor API. Required for node registration (server nodes only)"
-  }
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "6443"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "Kubernetes API Server"
-  }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "9345"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "RKE2 supervisor API. Required for node registration (server nodes only)"
+  # }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "6443"
+  #   source_ips  = concat(var.rancher_mgmt_cluster_nodes_ipv4, var.firewall_whitelist_ipv4)
+  #   description = "Kubernetes API Server (Restricted to Rancher Mgmt)"
+  # }
 
-  # --- etcd Ports (server nodes only) ---
+  # # --- Kubelet API (Нужен для логов и exec из Rancher) ---
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "10250"
+  #   source_ips  = var.rancher_mgmt_cluster_nodes_ipv4
+  #   description = "Kubelet API (logs, exec) from Rancher Mgmt"
+  # }
   # ref: https://docs.rke2.io/install/requirements#inbound-network-rules
 
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "2379"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "etcd client port"
-  }
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "2380"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "etcd peer port"
-  }
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "2381"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "etcd metrics port (RKE2 specific)"
-  }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "2379"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "etcd client port"
+  # }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "2380"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "etcd peer port"
+  # }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "2381"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "etcd metrics port (RKE2 specific)"
+  # }
 
   # --- Kubelet & Kubernetes Components ---
   # ref: https://kubernetes.io/docs/reference/networking/ports-and-protocols/
 
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "10250"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "Kubelet API (metrics, exec, logs)"
-  }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "10250"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "Kubelet API (metrics, exec, logs)"
+  # }
   # rule {
   #   direction   = "in"
   #   protocol    = "tcp"
@@ -114,27 +121,27 @@ resource "hcloud_firewall" "rke2_calico_fw" {
   # --- CNI: Calico (if using Calico instead of Canal) ---
   # ref: https://docs.tigera.io/calico/latest/getting-started/kubernetes/requirements
 
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "179"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "Calico BGP (only if using Calico with BGP)"
-  }
-  rule {
-    direction   = "in"
-    protocol    = "udp"
-    port        = "4789"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "Calico VXLAN (only if using Calico with VXLAN or Windows nodes)"
-  }
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "5473"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "Calico Typha (only if using Calico with Typha)"
-  }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "179"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "Calico BGP (only if using Calico with BGP)"
+  # }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "udp"
+  #   port        = "4789"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "Calico VXLAN (only if using Calico with VXLAN or Windows nodes)"
+  # }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "5473"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "Calico Typha (only if using Calico with Typha)"
+  # }
 
   # --- CNI: WireGuard encryption (optional) ---
   # ref: https://docs.rke2.io/install/requirements#cni-specific-inbound-network-rules
@@ -155,46 +162,46 @@ resource "hcloud_firewall" "rke2_calico_fw" {
   #   description = "WireGuard IPv6/dual-stack (only if WireGuard encryption enabled)"
   # }
 
-  # --- NodePort Services ---
+  # # --- NodePort Services ---
 
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "30000-32767"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "NodePort service range (TCP)"
-  }
-  rule {
-    direction   = "in"
-    protocol    = "udp"
-    port        = "30000-32767"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "NodePort service range (UDP)"
-  }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "30000-32767"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "NodePort service range (TCP)"
+  # }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "udp"
+  #   port        = "30000-32767"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "NodePort service range (UDP)"
+  # }
 
   # --- Ingress Controller ---
 
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "80"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "HTTP ingress traffic"
-  }
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "443"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "HTTPS ingress traffic, Rancher UI/API, kubectl"
-  }
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "10254"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "Ingress controller health checks (nginx-ingress)"
-  }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "80"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "HTTP ingress traffic"
+  # }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "443"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "HTTPS ingress traffic, Rancher UI/API, kubectl"
+  # }
+  # rule {
+  #   direction   = "in"
+  #   protocol    = "tcp"
+  #   port        = "10254"
+  #   source_ips  = ["0.0.0.0/0", "::/0"]
+  #   description = "Ingress controller health checks (nginx-ingress)"
+  # }
 
   # --- Monitoring (optional) ---
   # ref: https://ranchermanager.docs.rancher.com/integrations-in-rancher/monitoring-and-alerting/how-monitoring-works

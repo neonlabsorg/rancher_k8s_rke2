@@ -55,7 +55,7 @@ variable "cluster_configurations" {
       drain_before_delete    = optional(bool, true)
       machine_os             = optional(string, "linux")
       paused                 = optional(bool, false)
-      use_private_network    = optional(bool, false)
+      use_private_network    = optional(bool, true)
       use_default_cloud_init = optional(bool, true)
       custom_cloud_init      = optional(string, "")
       labels                 = optional(map(string))
@@ -118,22 +118,42 @@ variable "cluster_configurations" {
   }
 }
 
-# Required
-variable "management_network_id" {
+variable "rke2_network_range" {
   type        = string
-  description = "Rancher Management Network ID"
+  default     = "10.0.0.0/16"
+  description = "RKE2 Network Range"
+  validation {
+    condition     = can(cidrnetmask(var.rke2_network_range))
+    error_message = "rke2_network_range must be a valid IPv4 CIDR."
+  }
 }
 
-# Required
-# variable "management_network_name" {
-#   type        = string
-#   description = "Rancher Management Network Name"
-#   default     = ""
-# }
+variable "rke2_subnet_network_range" {
+  type        = string
+  default     = "10.0.0.0/23"
+  description = "RKE2 Subnet Network Range"
+  validation {
+    condition     = can(cidrnetmask(var.rke2_subnet_network_range))
+    error_message = "rke2_subnet_network_range must be a valid IPv4 CIDR."
+  }
+}
+
+variable "rke2_subnet_network_zone" {
+  type        = string
+  default     = "eu-central"
+  description = <<-EOT
+    RKE2 Subnet Network Zone. Hetzner Cloud supported zones: eu-central, us-east, us-west, ap-southeast
+    Robot supported only in eu-central zone.
+  EOT
+  validation {
+    condition     = contains(["eu-central", "us-east", "us-west", "ap-southeast"], var.rke2_subnet_network_zone)
+    error_message = "rke2_subnet_network_zone must be one of: eu-central, us-east, us-west, ap-southeast."
+  }
+}
 
 variable "hcloud_ccm_chart_version" {
   type        = string
-  default     = "1.28.0" # last available version when this module was created
+  default     = "1.29.2" # last available version when this module was created
   description = <<-EOT
     Hetzner Cloud Controller Manager Chart Version
     Docs link: https://artifacthub.io/packages/helm/hcloud/hcloud-cloud-controller-manager

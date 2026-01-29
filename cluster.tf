@@ -49,11 +49,12 @@ disablePublicIpv4: false
 disablePublicIpv6: false
 additionalKey: []
 additionalUserData: |-
-  ${each.value.use_default_cloud_init ? indent(4, file("${path.module}/cloud-init/default-cloud-init.yaml")) : indent(4, each.value.custom_cloud_init)}
+  ${each.value.use_default_cloud_init ? indent(4, templatefile("${path.module}/cloud-init/default-cloud-init.yaml", { rke2_private_network_range = var.rke2_subnet_network_range })) : indent(4, each.value.custom_cloud_init)}
 existingKeyId: "0"
 existingKeyPath: ""
 keyLabel: []
-networks: []
+networks:
+  - "${hcloud_network.rke2_network.id}"
 placementGroup: ""
 primaryIpv4: ""
 primaryIpv6: ""
@@ -137,13 +138,57 @@ resource "rancher2_cluster_v2" "hetzner_k8s_rke2" {
       disable = [
         "rke2-ingress-nginx"
       ]
-      etcd-expose-metrics = false
+      etcd-expose-metrics = true
+      kube-apiserver-arg = [
+        "kubelet-preferred-address-types=ExternalIP,InternalIP"
+      ]
       kubelet-arg = [
         "cloud-provider=external",
         "container-log-max-size=${var.max_container_log_size}",
         "container-log-max-files=${var.max_container_log_files}"
       ]
     })
+
+    chart_values = yamlencode({
+      rke2-calico = {
+        # Used in case of private network is used
+        installation = {
+          calicoNetwork = {
+            mtu = 1350 # Direct routing on Hetzner Private Network
+            nodeAddressAutodetectionV4 = {
+              # Force calico to use private network
+              cidrs = [hcloud_network.rke2_network.ip_range]
+            }
+          }
+        }
+      }
+    })
+
+    #     chart_values = yamlencode({
+    #   rke2-calico = {
+    #     installation = {
+    #       calicoNetwork = {
+    #         mtu = 1350
+    #         bgp = "Enabled"
+
+    #         ipPools = [{
+    #           cidr          = "10.42.0.0/16"
+    #           encapsulation = "None"
+    #           natOutgoing   = "Enabled"
+    #           nodeSelector  = "all()"
+    #         }]
+
+    #         nodeAddressAutodetectionV4 = {
+    #           cidrs = [hcloud_network.rke2_network.ip_range] 
+    #         }
+    #       }
+    #     }
+
+    #     felixConfiguration = {
+    #       wireguardEnabled = true
+    #     }
+    #   }
+    # })
 
     additional_manifest = <<-EOF
 ---
@@ -155,7 +200,7 @@ metadata:
   namespace: kube-system
 stringData:
   token: "${var.hetzner_api_token}"
-  network: "${var.management_network_id}"
+  network: "${hcloud_network.rke2_network.id}"
   robot-user: "${var.robot_user}"
   robot-password: "${var.robot_password}"
 ---
@@ -174,15 +219,59 @@ spec:
   valuesContent: |-
     networking:
       enabled: true
-      clusterCIDR: 10.42.0.0/16  # Default cluster CIDR for rke2-calico
+      clusterCIDR: 10.42.0.0/16  # Default cluster CIDR for rke2
+      network:
+        valueFrom:
+          secretKeyRef:
+            name: hcloud
+            key: network
     robot:
       enabled: ${var.enable_robot_support}
+    env:
+      # Disable network routes cause CNI do it and Robot API does not support routing
+      HCLOUD_NETWORK_ROUTES_ENABLED:
+        value: "false"
+      HCLOUD_TOKEN:
+        valueFrom:
+          secretKeyRef:
+            name: hcloud
+            key: token
+      ROBOT_USER:
+        valueFrom:
+          secretKeyRef:
+            name: hcloud
+            key: robot-user
+            optional: true
+      ROBOT_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: hcloud
+            key: robot-password
+            optional: true
     additionalTolerations:
       - key: "node-role.kubernetes.io/etcd"
         operator: "Exists"
         effect: "NoExecute"
 EOF
 
+  }
+
+  lifecycle {
+    precondition {
+      condition = alltrue([
+        for p in var.cluster_configurations.node_pools_machine_config :
+        contains(
+          lookup({
+            "eu-central"   = ["fsn1", "nbg1", "hel1"],
+            "us-east"      = ["ash"],
+            "us-west"      = ["hil"],
+            "ap-southeast" = ["sin"]
+          }, var.rke2_subnet_network_zone, []),
+          p.server_location
+        )
+      ])
+      error_message = "One or more node pools have a server_location that is not compatible with the rke2_subnet_network_zone (${var.rke2_subnet_network_zone})."
+    }
   }
 
   depends_on = [kubectl_manifest.hetzner_machine_config]
